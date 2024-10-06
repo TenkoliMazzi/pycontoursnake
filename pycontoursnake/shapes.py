@@ -5,9 +5,23 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 
 class Shapes:
+    """
+    The Shapes class provides static methods to generate geometric shapes such as stars and ellipses.   
+    """
 
     @staticmethod
     def generate_star(N, **shape_specs):
+        """
+        Generates a star shape with specified parameters.
+        -   N (int): The number of points to generate for the star.
+        -   shape_specs: Arbitrary keyword arguments for shape specifications:
+            - center (tuple): The (x, y) coordinates of the center of the star. Default is (0, 0).
+            - outer_radius (float): The radius of the outer points of the star. Default is 100.
+            - inner_radius (float): The radius of the inner points of the star. Default is 50.
+            - spikes (int): The number of spikes in the star. Default is 5.
+        Returns:
+        torch.Tensor: A tensor of shape (N, 2) containing the (x, y) coordinates of the star points.
+        """
         # Extract shape specifications with default values
         x = shape_specs.get('center', (0, 0))[0]
         y = shape_specs.get('center', (0, 0))[1]
@@ -45,7 +59,17 @@ class Shapes:
 
     @staticmethod
     def generate_ellipse(N, image="", a=200, b=150, xo=0, yo=0):
-        """Generate an ellipse of 'N' points."""
+        """
+        Generate an ellipse of 'N' points.
+        - N (int): The number of points to generate for the ellipse.
+        - image (numpy.ndarray): The image to use as reference for the ellipse size. Default is an empty image.
+        - a (int): The major axis of the ellipse. Default is half the image width.
+        - b (int): The minor axis of the ellipse. Default is half the image height.
+        - xo (int): The x-coordinate of the ellipse center. Default is half the image width.
+        - yo (int): The y-coordinate of the ellipse center. Default is half the image height.
+        Returns:
+        numpy.ndarray: An array of shape (N, 2) containing the (x, y) coordinates of the ellipse points.
+        """
         if image == "":
             image = np.zeros((512, 512))
         a = a or image.shape[0] / 2
