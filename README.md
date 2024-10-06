@@ -23,28 +23,67 @@ You can install the required dependencies using:
 pip install torch opencv-python-headless numpy matplotlib
 ```
 
-## Usage
+## Example Usage
 
-To create a snake and optimize it on a given image:
+This example uses the pysnakecontour package to initialize a snake around a star-shaped object and optimize its contour to fit the object's boundary.
 
 ```python
+from pysnakecontour import Snake, Shapes, Constraint
+import numpy as np
 import cv2
-from snake import Snake
+import matplotlib.pyplot as plt
+%matplotlib ipympl
 
-# Load image and convert to 3 channels if necessary
-image = cv2.imread('path_to_image.jpg')
+# Load an example image or create a blank image with a white star in the middle
+canvas_shape = (1000, 1000, 3)
+shape_specs = {
+    'center': (500, 500),
+    'radius': 150,
+    'inner_radius': 150,
+    'outer_radius': 250,
+    'spikes': 4,
+    'color': (255, 255, 255),
+    'thickness': -1,
+    'ratio': 2,
+    'noise': 0.0,  # No noise
+}
 
-# Initialize the snake with parameters (optional arguments available)
-snake = Snake(N=100, image=image, alpha=0.1, beta=0.1, gamma=2, delta=2, lr=0.01, iter_max=100, verbose=True)
+# Create a blank image with the star shape
+star_on_white_background = np.zeros(canvas_shape, dtype=np.int32) * 255
+star_points = Shapes.generate_star(N=50, **shape_specs).int()
+star_on_white_background = cv2.fillPoly(star_on_white_background, pts=[star_points.numpy()], color=(255, 255, 255))
+star_on_white_background = cv2.convertScaleAbs(star_on_white_background)
 
-# Perform optimization
-snake.gradient_descent(plot_skip=10)  # plot_skip defines how often to visualize the progress
+# Generate initial points in an ellipse around the center of the star
+initial_points = Shapes.generate_ellipse(N=50, xo=500, yo=500, a=400, b=400)
 
-# Visualize the final snake
-snake.plot_snake()
+# Define constraints and parameters
+constraints = [Constraint.spring([500, 500], 0.00005, 100)]
 
-# Plot the evolution of the snake as an animation
-snake.plot_evolution()
+parameters = {
+    'alpha': 0.0005,   # Elasticity weight
+    'beta': 0.0005,    # Curvature weight
+    'gamma': 0.05,     # Gradient energy weight
+    'delta': 0.25,     # Intensity energy weight
+    'sigma': 10,       # Gaussian blur standard deviation
+    'step_size': 0.02, # Step size for finer adjustments
+    'lr': 0.05,        # Learning rate
+    'verbose': False,  # Disable verbose output
+    'constraints': constraints
+}
+
+# Initialize the Snake algorithm
+snake = Snake(
+    N=20000,  # Number of control points for the snake
+    image=star_on_white_background,  # Input image
+    points=initial_points,  # Initial snake points (ellipse)
+    iter_max=5000,  # Maximum iterations for optimization
+    **parameters  # Additional parameters
+)
+
+# Run gradient descent to optimize the snake's position
+snake.gradient_descent(plot_skip=-1)  # plot_skip=-1 disables intermediate plotting
+
 ```
 
 ### Key Parameters:
