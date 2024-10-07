@@ -5,8 +5,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
-import pysnakecontour.shapes as Shapes
-import pysnakecontour.constraints as Constraints
+from pycontoursnake.shapes import Ellipse
 
 
         
@@ -39,6 +38,7 @@ class Snake:
     - lr: Learning rate for gradient descent.
     - verbose: Print energy values at each iteration.
     - iter_max: Maximum iterations for snake optimization.
+    - gradient_threshold: Treshold for the gradient magnitude.
     
     Note:
     - If both points and N are provided, N will be set to the number of points.
@@ -55,14 +55,10 @@ class Snake:
     - plot_snake(): Plot the current snake on the image.
     """
     
-    def __init__(self, N, image, points=[], alpha=0.1, beta=0.1, sigma=20, gamma=2, delta=2, lr=0.01, verbose=False, iter_max=100,batch_size = .75, constraints = [], **kwargs):
+    def __init__(self, N, image, points=[], alpha=0.1, beta=0.1, sigma=20, gamma=2, delta=2, lr=0.01, verbose=False, iter_max=100,batch_size = .75, constraints = [], gradient_threshold = 0, **kwargs):
         self.device = torch.device("cpu")
         # If points are provided, use them, otherwise generate an ellipse
-        if len(points) > 0:
-            self.points = torch.tensor(points, dtype=torch.float32, requires_grad=True, device=self.device)
-            N = len(points)  # Ensure N matches the number of points
-        else:
-            self.points = torch.tensor(Shapes.generate_ellipse(), dtype=torch.float32, requires_grad=True).to(self.device)
+        
 
         self.alpha = alpha  # Elasticity weight
         self.beta = beta  # Curvature weight
@@ -75,25 +71,44 @@ class Snake:
         self.constraints = constraints  # Constraints for the snake
         self.verbose = verbose
         self.N = N  # Number of points
+        self.gradient_threshold = gradient_threshold  # Threshold for gradient magnitude
+
+        if kwargs is not None:
+            for key, value in kwargs.items():
+                print(f"Setting {key} to {value}")
+                setattr(self, key, value)
+
+        if image is torch.Tensor:
+            self.image_numpy = cv2.cvtColor(image.cpu().numpy(), cv2.COLOR_BGR2GRAY)
+        else:
+            self.image_numpy = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         
-        self.image_numpy = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        self.image_tensor = torch.tensor(self.image_numpy, dtype=torch.float32).to(self.device)
-        self.original_image_tensor = self.image_tensor.clone().to(self.device)
+        self.image_tensor = torch.tensor(self.image_numpy, dtype=torch.float32)
+        self.original_image_tensor = self.image_tensor.clone().detach()   
+       
         self.compute_sobel(sigma=self.sigma)  # Precompute Sobel gradient
         
-        if kwargs:
-            for key, value in kwargs.items():
-                setattr(self, key, value)
         
+        
+        if len(points) > 0:
+            self.points = points.clone().detach().to(self.device).requires_grad_(True) if torch.is_tensor(points) else torch.tensor(points, dtype=torch.float32, requires_grad=True).to(self.device)
+            N = len(points)  # Ensure N matches the number of points
+        else:
+            ellipse_parameters = {
+                'center': (self.image_tensor.shape[1] // 2, self.image_tensor.shape[0] // 2),
+                'a': self.image_tensor.shape[1] // 4,
+                'b': self.image_tensor.shape[0] // 4
+            }
+            self.points = torch.tensor(Ellipse().generate(N,ellipse_parameters), dtype=torch.float32, requires_grad=True).to(self.device)
+
         self.displacement = torch.sqrt(torch.sum((self.points - self.points.roll(shifts=1, dims=0))**2, dim=1))
         self.curvature = torch.sqrt(torch.sum((self.points - 2 * self.points.roll(shifts=1, dims=0) + self.points.roll(shifts=2, dims=0))**2, dim=1))
-
+ 
     def compute_energy(self):
         """Compute the total energy for the snake."""
         internal_energy = self.compute_internal_energy()
         external_energy = self.compute_external_energy()
         constraint_energy = self.compute_constraint_energy()
-        # print(f"Internal Energy: {internal_energy.item()} External Energy: {external_energy.item()} Constraint Energy: {constraint_energy.item()}")
         return external_energy + internal_energy + constraint_energy
 
     def compute_internal_energy(self):
@@ -148,6 +163,9 @@ class Snake:
         
     def compute_constraint_energy(self):
         """Compute the energy from constraints"""
+
+
+
         constraint_tensor = torch.stack([constraint.energy(self.points) for constraint in self.constraints])
         return torch.sum(constraint_tensor)
         
@@ -163,6 +181,8 @@ class Snake:
 
         self.gradient = torch.stack((torch.tensor(sobel_x), torch.tensor(sobel_y)), dim=2).to(self.device)
         self.gradient_magnitude = torch.sqrt(self.gradient[:, :, 0]**2 + self.gradient[:, :, 1]**2)
+        self.gradient_magnitude = (self.gradient_magnitude - self.gradient_magnitude.min()) / (self.gradient_magnitude.max() - self.gradient_magnitude.min())
+        self.gradient_magnitude = torch.where(self.gradient_magnitude < self.gradient_threshold, 0, self.gradient_magnitude)
 
     def gradient_descent(self, plot_skip=-1):
         """Run gradient descent to optimize the snake."""
@@ -183,8 +203,7 @@ class Snake:
             if plot_skip != -1 and i % plot_skip == 0:
                 self.plot_snake()       
 
-        self.plot_evolution()
-       
+        self.plot_snake()       
     def plot_snake(self):
         """Plot the current snake on the image."""
         points_and_first_x = torch.cat((self.points[:, 0], self.points[0, 0].unsqueeze(0))).detach().cpu().numpy()
@@ -194,7 +213,7 @@ class Snake:
         plt.imshow(self.gradient_magnitude.cpu(), cmap='gray')
         plt.plot(points_and_first_x, points_and_first_y, 'r', lw=1, label='Snake')
         plt.subplot(1, 2, 2)
-        plt.imshow(self.image_numpy, cmap='gray')
+        plt.imshow(self.original_image_tensor, cmap='gray')
         plt.plot(points_and_first_x, points_and_first_y, 'r', lw=1, label='Snake')
         plt.show()
 
@@ -231,6 +250,8 @@ class Snake:
 
 
         plt.show()
+
+        return ani
 
 
 

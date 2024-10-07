@@ -25,64 +25,64 @@ pip install torch opencv-python-headless numpy matplotlib
 
 ## Example Usage
 
-This example uses the pysnakecontour package to initialize a snake around a star-shaped object and optimize its contour to fit the object's boundary.
+This example uses the pysnakecontour package to initialize a snake around a brain.
 
 ```python
-from pysnakecontour import Snake, Shapes, Constraint
-import numpy as np
+import torch
+from pycontoursnake import Snake
+from pycontoursnake.constraints import SpringConstraint
+from pycontoursnake.shapes import Ellipse
 import cv2
-import matplotlib.pyplot as plt
-%matplotlib ipympl
+import numpy as np
 
-# Load an example image or create a blank image with a white star in the middle
-canvas_shape = (1000, 1000, 3)
+image = cv2.imread('images/brain.png')
+padding = 50
+
+padded_image = np.pad(image, ((4*padding, 4*padding), (padding, padding), (0, 0)), mode='constant', constant_values=255)
+
+height, width = padded_image.shape[:2]
+center = (width // 2, height // 2)
+#  Set parameters
+
+
+N = 2000
 shape_specs = {
-    'center': (500, 500),
-    'radius': 150,
-    'inner_radius': 150,
-    'outer_radius': 250,
-    'spikes': 4,
-    'color': (255, 255, 255),
-    'thickness': -1,
-    'ratio': 2,
-    'noise': 0.0,  # No noise
+    'center': center,
+    'a': padded_image.shape[0] // 2.5,
+    'b': padded_image.shape[1] // 3,
+    'angle': 0.0,
 }
+initial_points = Ellipse().generate(N, **shape_specs)
+def rest_length_fn(points):   
+    distances = torch.linalg.norm(points - torch.tensor(center), axis=1)  
+    mean_distance = torch.mean(distances)
+    variance = torch.var(distances)
+    return torch.pow(distances - mean_distance, 2) / variance
 
-# Create a blank image with the star shape
-star_on_white_background = np.zeros(canvas_shape, dtype=np.int32) * 255
-star_points = Shapes.generate_star(N=50, **shape_specs).int()
-star_on_white_background = cv2.fillPoly(star_on_white_background, pts=[star_points.numpy()], color=(255, 255, 255))
-star_on_white_background = cv2.convertScaleAbs(star_on_white_background)
-
-# Generate initial points in an ellipse around the center of the star
-initial_points = Shapes.generate_ellipse(N=50, xo=500, yo=500, a=400, b=400)
-
-# Define constraints and parameters
-constraints = [Constraint.spring([500, 500], 0.00005, 100)]
+constraints = [
+    SpringConstraint(pin_point=center, weight=0.00005, rest_length=rest_length_fn),
+]
 
 parameters = {
-    'alpha': 0.0005,   # Elasticity weight
-    'beta': 0.0005,    # Curvature weight
-    'gamma': 0.05,     # Gradient energy weight
-    'delta': 0.25,     # Intensity energy weight
-    'sigma': 10,       # Gaussian blur standard deviation
-    'step_size': 0.02, # Step size for finer adjustments
-    'lr': 0.05,        # Learning rate
-    'verbose': False,  # Disable verbose output
-    'constraints': constraints
+    'alpha': .05,
+    'beta': 0.005,
+    'sigma': 2,
+    'gamma': 0.5,
+    'delta': -0.5,
+    'lr': 2,
+    'verbose': True,
+    'iter_max': 1000,
+    'constraints': constraints,   
+    'gradient_threshold': 0.10,
 }
 
-# Initialize the Snake algorithm
-snake = Snake(
-    N=20000,  # Number of control points for the snake
-    image=star_on_white_background,  # Input image
-    points=initial_points,  # Initial snake points (ellipse)
-    iter_max=5000,  # Maximum iterations for optimization
-    **parameters  # Additional parameters
-)
 
-# Run gradient descent to optimize the snake's position
-snake.gradient_descent(plot_skip=-1)  # plot_skip=-1 disables intermediate plotting
+
+#  Initialize snake
+snake = Snake(N, padded_image, points=initial_points, **parameters)
+snake.gradient_descent(plot_skip=250)
+
+
 
 ```
 
@@ -100,7 +100,7 @@ snake.gradient_descent(plot_skip=-1)  # plot_skip=-1 disables intermediate plott
 - **`plot_evolution()`**: Shows an animated evolution of the snake contour over the optimization process.
 
 ## Example
-![Snake Evolution](docs/snake_example.gif)
+![Snake Evolution](examples/images/brain.gif)
 
 ## License
 This project is licensed under the MIT License.
