@@ -26,64 +26,67 @@ pip install torch opencv-python-headless numpy matplotlib
 ## Example Usage
 
 This example uses the pysnakecontour package to initialize a snake around a brain.
-
 ```python
-import torch
-from pycontoursnake import Snake
-from pycontoursnake.constraints import SpringConstraint
-from pycontoursnake.shapes import Ellipse
-import cv2
-import numpy as np
+import torch  # Import the PyTorch library
+from pycontoursnake import Snake  # Import the Snake class from the pycontoursnake package
+from pycontoursnake.constraints import SpringConstraint  # Import the SpringConstraint class
+from pycontoursnake.shapes import Ellipse  # Import the Ellipse class
+import cv2  # Import the OpenCV library
+import numpy as np  # Import the NumPy library
 
+# Read the image from the specified path
 image = cv2.imread('images/brain.png')
-padding = 50
+padding = 50  # Define padding size
 
+# Pad the image with a constant value (255) to avoid boundary issues
 padded_image = np.pad(image, ((4*padding, 4*padding), (padding, padding), (0, 0)), mode='constant', constant_values=255)
 
+# Get the height and width of the padded image
 height, width = padded_image.shape[:2]
-center = (width // 2, height // 2)
-#  Set parameters
+center = (width // 2, height // 2)  # Calculate the center of the image
 
-
-N = 2000
+# Set parameters for the initial snake shape
+N = 1000  # Number of points in the snake
 shape_specs = {
-    'center': center,
-    'a': padded_image.shape[0] // 2.5,
-    'b': padded_image.shape[1] // 3,
-    'angle': 0.0,
+    'center': center,  # Center of the ellipse
+    'a': padded_image.shape[0] // 2.5,  # Semi-major axis length
+    'b': padded_image.shape[1] // 3,  # Semi-minor axis length
+    'angle': 0.0,  # Rotation angle of the ellipse
 }
-initial_points = Ellipse().generate(N, **shape_specs)
-def rest_length_fn(points):   
-    distances = torch.linalg.norm(points - torch.tensor(center), axis=1)  
-    mean_distance = torch.mean(distances)
-    variance = torch.var(distances)
-    return torch.pow(distances - mean_distance, 2) / variance
 
+# Generate initial points for the snake in the shape of an ellipse
+initial_points = Ellipse().generate(N, **shape_specs)
+
+# Define a function to calculate the rest length for the spring constraint
+def rest_length_fn(points):   
+    distances = torch.linalg.norm(points - torch.tensor(center), axis=1)  # Calculate distances from center
+    mean_distance = torch.mean(distances)  # Calculate mean distance
+    variance = torch.var(distances)  # Calculate variance of distances
+    return torch.pow(distances - mean_distance, 2) / variance  # Return normalized squared distances
+
+# Define constraints for the snake
 constraints = [
-    SpringConstraint(pin_point=center, weight=0.00005, rest_length=rest_length_fn),
+    SpringConstraint(pin_point=center, weight=0.00005, rest_length=rest_length_fn),  # Add a spring constraint
 ]
 
+# Set parameters for the snake optimization
 parameters = {
-    'alpha': .05,
-    'beta': 0.005,
-    'sigma': 2,
-    'gamma': 0.5,
-    'delta': -0.5,
-    'lr': 2,
-    'verbose': True,
-    'iter_max': 1000,
-    'constraints': constraints,   
-    'gradient_threshold': 0.10,
+    'alpha': .05,  # Elasticity weight
+    'beta': 0.005,  # Curvature weight
+    'sigma': 2,  # Gaussian smoothing parameter
+    'gamma': 0.5,  # Gradient energy weight
+    'delta': -0.5,  # Intensity energy weight
+    'lr': 2,  # Learning rate
+    'verbose': True,  # Verbose output
+    'iter_max': 500,  # Maximum number of iterations
+    'constraints': constraints,  # Constraints to apply
+    'gradient_threshold': 0.10,  # Gradient threshold
 }
 
-
-
-#  Initialize snake
+# Initialize the snake with the specified parameters and image
 snake = Snake(N, padded_image, points=initial_points, **parameters)
+# Perform gradient descent to evolve the snake
 snake.gradient_descent(plot_skip=250)
-
-
-
 ```
 
 ### Key Parameters:

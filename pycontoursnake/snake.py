@@ -135,8 +135,7 @@ class Snake:
 
 
     def compute_external_energy(self):
-        """Compute the external energy using bilinear interpolation for differentiability."""
-        
+        """Compute the external energy using bilinear interpolation for differentiability."""        
         # Get the x and y coordinates of the points
         x_points = self.points[:, 0]
         y_points = self.points[:, 1]
@@ -163,8 +162,6 @@ class Snake:
         
     def compute_constraint_energy(self):
         """Compute the energy from constraints"""
-
-
 
         constraint_tensor = torch.stack([constraint.energy(self.points) for constraint in self.constraints])
         return torch.sum(constraint_tensor)
@@ -204,6 +201,7 @@ class Snake:
                 self.plot_snake()       
 
         self.plot_snake()       
+
     def plot_snake(self):
         """Plot the current snake on the image."""
         points_and_first_x = torch.cat((self.points[:, 0], self.points[0, 0].unsqueeze(0))).detach().cpu().numpy()
@@ -219,34 +217,32 @@ class Snake:
 
     def plot_evolution(self):
         """Plot the evolution of the snake over iterations."""
-        # Creo un'animazione che mostra l'evoluzione dei punti nel tempo
+      
         points = self.old_points.cpu().detach().numpy()
 
         fig, ax = plt.subplots()
         ax.imshow(self.original_image_tensor, cmap='gray')
 
-        # Imposta la linea iniziale, vuota all'inizio
+     
         line, = ax.plot([], [], 'r', lw=1, label='Snake')
 
-        # Imposta i limiti degli assi
+    
         ax.set_xlim(0, self.original_image_tensor.shape[1])
         ax.set_ylim(self.original_image_tensor.shape[0], 0)
         ax.set_title('Snake Evolution')
         ax.legend()
 
-        # Funzione per inizializzare l'animazione
+      
         def init():
             line.set_data([], [])
             return line,
 
-        # Funzione per aggiornare l'animazione ad ogni frame
         def update(frame):
             line.set_data(points[:, 0, frame], points[:, 1, frame])        
             ax.set_title(f'Snake Evolution - Iteration {frame}')    
             return line,
 
-        # Crea l'animazione
-        ani = FuncAnimation(fig, update, frames=range(self.iter_max), init_func=init, blit=False, interval=1)  # intervallo 200ms per frame
+        ani = FuncAnimation(fig, update, frames=range(self.iter_max), init_func=init, blit=False, interval=1)  
 
 
         plt.show()
